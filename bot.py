@@ -2,11 +2,12 @@
 '''
 Author: Pedro Labrador @SrPedro at Telegram
 '''
-from flask import Flask, request
 import telepot
-from telepot.namedtuple import ForceReply
+import time
 import urllib3
 import MySQLdb
+from flask import Flask, request
+from telepot.namedtuple import ForceReply
 
 class controlpicbot(Flask):
     proxy_url = "http://proxy.server:3128"
@@ -60,12 +61,17 @@ class controlpicbot(Flask):
         user_firstname = self.get_user_firstname(data)
 
         mention = "<a href='tg://user?id={}'>{}</a>".format(user_id, user_firstname)
+        
+        self.bot.sendChatAction(chat_id, 'typing')
 
         if reply_type == 'ForceReply':
             markup = ForceReply(selective=True)
             response = self.bot.sendMessage(chat_id, message + ', ' + mention, parse_mode='HTML', reply_markup=markup)
+            time.sleep(0.5)
             return response
+
         response = self.bot.sendMessage(chat_id, message)
+        time.sleep(0.5)
         return response
 
 
@@ -73,10 +79,14 @@ class controlpicbot(Flask):
         chat_id = self.get_chat_id(data)
         url_pic = self.get_control_pic_url(id, old_pic)
         try:
+            self.bot.sendChatAction(chat_id, 'upload_photo')
             response = self.bot.sendPhoto(chat_id, url_pic)
+            time.sleep(0.5)
             return response
         except telepot.exception.TelegramError as b:
+            self.bot.sendChatAction(chat_id, 'typing')
             self.bot.sendMessage(chat_id, "No se encuentra esta cedula almacenada")
+            time.sleep(0.5)
         return "Ok"
 
 
