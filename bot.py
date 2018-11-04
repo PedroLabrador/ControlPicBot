@@ -113,6 +113,9 @@ class controlpicbot(Flask):
 
 
     def find_name_career(self, data, name, career):
+        banlist = ['maria', 'luis', 'daniela', 'jose', 'juan', 'david', 'alejandro', 'jesus', 'andrea']
+        if name.lower() in banlist:
+            return self.send_message(data, "Para evitar el envio masivo de mensajes, el nombre que intenta buscar ha sido prohibido :(\nIntente usar la opcion /buscar_nombre_apellido joven")
         db = self.database_connection()
         cursor = db.cursor()
         query = "SELECT * FROM users WHERE career = '{}' AND name = '{}'".format(career, name)
