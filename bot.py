@@ -31,6 +31,16 @@ class controlpicbot(Flask):
         return chat_id
 
 
+    def get_user_id(self, data):
+        user_id = data['message']['from']['id']
+        return user_id
+
+
+    def get_user_firstname(self, data):
+        user_firstname = data['message']['from']['first_name']
+        return user_firstname
+
+
     def get_message(self, data):
         message_text = data['message']['text']
         return message_text
@@ -46,12 +56,15 @@ class controlpicbot(Flask):
 
     def send_message(self, data, message, reply_type = ''):
         chat_id = self.get_chat_id(data)
+        user_id = self.get_user_id(data)
+        user_firstname = self.get_user_firstname(data)
+
+        mention = "<a href='tg://user?id={}'>{}</a>".format(user_id, user_firstname)
 
         if reply_type == 'ForceReply':
-            markup = ForceReply()
-            response = self.bot.sendMessage(chat_id, message, reply_markup=markup)
+            markup = ForceReply(selective=True)
+            response = self.bot.sendMessage(chat_id, message + ', ' + mention, parse_mode='HTML', reply_markup=markup)
             return response
-
         response = self.bot.sendMessage(chat_id, message)
         return response
 
