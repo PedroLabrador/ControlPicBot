@@ -2,12 +2,16 @@
 '''
 Author: Pedro Labrador @SrPedro at Telegram
 '''
-import telepot
-import time
-import urllib3
-import MySQLdb
-from flask import Flask, request
+
+import telepot, time, urllib3, MySQLdb
+from flask import Flask, request, render_template, flash, redirect, url_for, session
+from passlib.hash import sha256_crypt
+from functools import wraps
 from telepot.namedtuple import ForceReply
+
+def database_connection(self):
+    db = MySQLdb.connect(host="HOST", user="USER", passwd="PASSWD", db="DB")
+    return db
 
 class controlpicbot(Flask):
     proxy_url = "http://proxy.server:3128"
@@ -16,8 +20,8 @@ class controlpicbot(Flask):
     API_KEY = "SECRET_API_KEY"
     WEBHOOK_URL = "WEBHOOK_URL/{}".format(secret)
 
-    def __init__(self, name):
-        super(controlpicbot, self).__init__(name)
+    def __init__(self, name, template_folder):
+        super(controlpicbot, self).__init__(name, template_folder=template_folder)
         telepot.api._pools = {'default': urllib3.ProxyManager(proxy_url=self.proxy_url, num_pools=3, maxsize=10, retries=False, timeout=30),}
         telepot.api._onetime_pool_spec = (urllib3.ProxyManager, dict(proxy_url=self.proxy_url, num_pools=1, maxsize=1, retries=False, timeout=30))
 
@@ -25,6 +29,7 @@ class controlpicbot(Flask):
 
         self.bot = telepot.Bot(self.API_KEY)
         self.bot.setWebhook(self.WEBHOOK_URL, max_connections=100)
+        self.secret_key = self.secret
 
 
     def get_chat_id(self, data):
@@ -90,13 +95,8 @@ class controlpicbot(Flask):
         return "Ok"
 
 
-    def database_connection(self):
-        db = MySQLdb.connect(host="HOST", user="USER", passwd="PASSWD", db="DB")
-        return db
-
-
     def find_name_lastname(self, data, name, lastname):
-        db = self.database_connection()
+        db = database_connection()
         cursor = db.cursor()
         query = "SELECT * FROM users WHERE lastname = '{}' AND name = '{}'".format(lastname, name)
         cursor.execute(query)
@@ -116,7 +116,7 @@ class controlpicbot(Flask):
         banlist = ['maria', 'luis', 'daniela', 'jose', 'juan', 'david', 'alejandro', 'jesus', 'andrea']
         if name.lower() in banlist:
             return self.send_message(data, "Para evitar el envio masivo de mensajes, el nombre que intenta buscar ha sido prohibido :(\nIntente usar la opcion /buscar_nombre_apellido joven")
-        db = self.database_connection()
+        db = database_connection()
         cursor = db.cursor()
         query = "SELECT * FROM users WHERE career = '{}' AND name = '{}'".format(career, name)
         cursor.execute(query)
@@ -153,7 +153,7 @@ class controlpicbot(Flask):
             old_pic = True
             id = id[1:]
 
-        db = self.database_connection()
+        db = database_connection()
         cursor = db.cursor()
         query = "SELECT * FROM users WHERE id = 'V{}'".format(id)
         cursor.execute(query)
@@ -218,6 +218,7 @@ class controlpicbot(Flask):
             print(k)
             return False
 
+
     def command_handler(self):
         data = request.json
 
@@ -247,4 +248,64 @@ class controlpicbot(Flask):
         return "OK"
 
 
-app = controlpicbot(__name__)
+app = controlpicbot(__name__, template_folder='folder')
+
+
+def is_logged_in(f):
+    @wraps(f)
+    def wrap(*args, **kwargs):
+        if 'logged_in' in session:
+            return f(*args, **kwargs)
+        else:
+            flash("Unathorized, please log in", 'danger')
+            return redirect(url_for('login'))
+    return wrap
+
+
+@app.route('/', methods=['GET'])
+def index():
+    return "Hola"
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password_candidate = request.form['password']
+
+        db = database_connection()
+        cursor = db.cursor()
+        query = "SELECT * FROM users WHERE username='{}' LIMIT 1".format(username)
+        result = cursor.execute(query)
+
+        if result > 0:
+            data = cursor.fetchone()
+            cursor.close()
+            password = data[4]
+
+            if sha256_crypt.verify(password_candidate, password):
+                session['logged_in'] = True
+                session['username'] = username
+
+                flash('You are now logged in', 'success')
+                return redirect(url_for('dashboard'))
+            else:
+                return render_template("login.html", error="Username or Password incorrect")
+        else:
+            cursor.close()
+            return render_template("login.html", error="Username or Password incorrect")
+    return render_template("login.html")
+
+
+@app.route('/dashboard')
+@is_logged_in
+def dashboard():
+    return render_template('dashboard.html')
+
+
+@app.route('/logout')
+@is_logged_in
+def logout():
+    session.clear()
+    flash("You are now logged out", 'success')
+    return redirect(url_for('login'))
