@@ -1,0 +1,18 @@
+<nav class="navbar navbar-expand-md navbar-dark bg-dark">
+  <a class="navbar-brand" href="/">ControlPicBot</a>
+  <div class="collapse navbar-collapse" id="navbarsExampleDefault">
+    <ul class="navbar-nav mr-auto">
+      <!--<li class="nav-item active"><a class="nav-link" href="/">Home</a></li>
+      <li class="nav-item"><a class="nav-link" href="/about">About</a></li>-->
+    </ul>
+    <ul class="navbar-nav navbar-right">
+      {% if session.logged_in %}
+        <li class="nav-item"><a class="nav-link" href="/dashboard">Dashboard</a></li>
+        <li class="nav-item"><a class="nav-link" href="/logout">Logout</a></li>
+      {% else %}
+        <li class="nav-item"><a class="nav-link" href="/login">Login</a></li>
+        </li>
+      {% endif %}
+    </ul>
+  </div>
+</nav>
