@@ -3,7 +3,7 @@
 Author: Pedro Labrador @SrPedro at Telegram
 '''
 
-import telepot, time, urllib3, MySQLdb
+import telepot, time, urllib3, MySQLdb, scrap
 from flask import Flask, request, render_template, flash, redirect, url_for, session
 from passlib.hash import sha256_crypt
 from functools import wraps
@@ -134,17 +134,27 @@ class controlpicbot(Flask):
     def fetch_data(self, data, found, old_pic=False):
         if not found:
             self.send_message(data, "No se encuentra a est@ joven en nuestros registros.")
-            return "Not OK"
+            return "Failure"
         else:
-            if len(found) == 1:
-                row = found[0]
-                self.send_message(data, str(row[5]) + "\n" + str(row[2]) + " " + str(row[3]) + " " + str(row[0]) + " " + str(row[1]) + "\n" + str(row[4]))
-                self.send_control_pic(data, str(row[4])[1:], old_pic)
-            else:
+            if len(found) > 1:
                 self.send_message(data, "Estos son los resultados:")
-                for row in found:
-                    self.send_message(data, str(row[5]) + "\n" + str(row[2]) + " " + str(row[3]) + " " + str(row[0]) + " " + str(row[1]) + "\n" + str(row[4]))
-        return "OK"
+
+            for current in found:
+                row = [str(a).replace('None', '') for a in current]
+                titles, user_data = scrap.get_cne_data('VE', row[4][1:])
+                msg = row[5] + "\n" + row[2] + " " + row[3] + " " + row[0] + " " + row[1] + "\n" + row[4]
+
+                if len(titles) > 0 and len(data) > 0:
+                    state        = user_data[titles.index('Estado')]
+                    municipality = user_data[titles.index('Municipio')]
+                    msg += "\nEstado: " + state + "\nMunicipio: " + municipality
+
+                self.send_message(data, msg)
+
+                if len(found) == 1:
+                    self.send_control_pic(data, row[4][1:], old_pic)
+
+        return "Success"
 
 
     def find_id(self, data, id):
