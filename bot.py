@@ -47,6 +47,21 @@ class controlpicbot(Flask):
         return user_firstname
 
 
+    def get_username(self, data):
+        username = data['message']['from']['username'] if 'username' in data['message']['from'] else "No username"
+        return username
+
+
+    def get_chat_type(self, data):
+        chat_type = data['message']['chat']['type']
+        return chat_type
+
+
+    def get_chat_title(self, data):
+        chat_title = data['message']['chat']['title'] if 'title' in data['message']['chat'] else 'No title'
+        return chat_title
+
+
     def get_message(self, data):
         message_text = data['message']['text']
         return message_text
@@ -96,6 +111,8 @@ class controlpicbot(Flask):
 
 
     def find_name_lastname(self, data, name, lastname):
+        msg = name + " " + lastname
+        self.db_user_check(data, msg)
         db = database_connection()
         cursor = db.cursor()
         query = "SELECT * FROM users WHERE lastname = '{}' AND name = '{}'".format(lastname, name)
@@ -113,6 +130,8 @@ class controlpicbot(Flask):
 
 
     def find_name_career(self, data, name, career):
+        msg = name + " " + career
+        self.db_user_check(data, msg)
         banlist = ['maria', 'luis', 'daniela', 'jose', 'juan', 'david', 'alejandro', 'jesus', 'andrea']
         if name.lower() in banlist:
             return self.send_message(data, "Para evitar el envio masivo de mensajes, el nombre que intenta buscar ha sido prohibido :(\nIntente usar la opcion /buscar_nombre_apellido joven")
@@ -158,6 +177,7 @@ class controlpicbot(Flask):
 
 
     def find_id(self, data, id):
+        self.db_user_check(data, id)
         old_pic = False
         if id.startswith('-'):
             old_pic = True
@@ -210,23 +230,74 @@ class controlpicbot(Flask):
 
 
     def check_replies(self, data):
-        try:
-            if 'reply_to_message' in data['message']:
-                line = data['message']['reply_to_message']['text'][:1]
-                tokens = data['message']['text']
+        if 'reply_to_message' in data['message']:
+            try:
+                operator = data['message']['reply_to_message']['text'][:1]
+                tokens = data['message']['text'].split(" ")
+            except Exception as e:
+                print("An error has ocurred, maybe it's an emoji error")
+                return False
 
-                if line == '*':
-                    self.find_id(data, tokens[0])
-                if line == '+':
-                    self.find_name_lastname(data, tokens[0], tokens[1])
-                if line == '-':
-                    self.find_name_career(data, tokens[0], tokens[1])
-                return True  #Message replied
+            if operator in ('*', '+', '-'):
+                if operator == '*':
+                    if len(tokens) is 1:
+                        self.find_id(data, tokens[0])
+                    else:
+                        self.send_message(data, "* Escriba el número de cédula que desea buscar", 'ForceReply')
+                elif operator == '+':
+                    if len(tokens) is 2:
+                        self.find_name_lastname(data, tokens[0], tokens[1])
+                    else:
+                        self.send_message(data, "+ Escriba el primer nombre y el primer apellido separados con un espacio", 'ForceReply')
+                elif operator == '-':
+                    if len(tokens) is 2:
+                        self.find_name_career(data, tokens[0], tokens[1])
+                    else:
+                        self.send_message(data, "- Escriba el primer nombre y la carrera separados con un espacio\nEjemplo: Luis Civil", 'ForceReply')
             else:
-                return False #No message to reply
-        except KeyError as k:
-            print(k)
-            return False
+                return False
+
+            return True  #Message replied
+        else:
+            return False #No message to reply
+
+
+    def db_user_check(self, data, msg):
+        db = database_connection()
+        cursor = db.cursor()
+
+        user_id = self.get_user_id(data)
+        username = self.get_username(data)
+        first_name = self.get_user_firstname(data)
+        chat_id = self.get_chat_id(data)
+        chat_type = self.get_chat_type(data)
+        chat_title = self.get_chat_title(data)
+        text = msg
+
+        query = "SELECT * FROM registers WHERE telegram_user_id = '{}' LIMIT 1".format(user_id)
+        result = cursor.execute(query)
+
+        if not result > 0:
+            query = "INSERT INTO registers (telegram_user_id, username, first_name) VALUES ('{}', '{}', '{}')".format(user_id, username, first_name)
+            cursor.execute(query)
+            db.commit()
+            query = "SELECT * FROM registers WHERE telegram_user_id = '{}' LIMIT 1".format(user_id)
+            cursor.execute(query)
+
+        row = cursor.fetchone()
+        register_id = row[0]
+        try:
+            query = "INSERT INTO history (register_id, chat_id, chat_title, chat_type, text) VALUes ('{}', '{}', '{}', '{}', '{}')".format(register_id, chat_id, chat_title, chat_type, text)
+            cursor.execute(query)
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            print("An error has ocurred :(")
+            return "Error"
+
+        db.close()
+
+        return "OK"
 
 
     def command_handler(self):
@@ -310,7 +381,29 @@ def login():
 @app.route('/dashboard')
 @is_logged_in
 def dashboard():
-    return render_template('dashboard.html')
+    db = database_connection()
+    cursor = db.cursor()
+    query = "SELECT * FROM registers"
+    cursor.execute(query)
+    data = cursor.fetchall()
+    db.close()
+
+    return render_template('dashboard.html', registers=data)
+
+
+@app.route('/registers/<string:user_id>')
+@is_logged_in
+def user_registers(user_id):
+    db = database_connection()
+    cursor = db.cursor()
+    query = "SELECT h.id, r.username, r.first_name, h.chat_id, h.chat_type, h.chat_title, h.text, h.date FROM history h JOIN registers r on h.register_id = r.id WHERE r.telegram_user_id = '{}'".format(user_id)
+    result = cursor.execute(query)
+    data = cursor.fetchall()
+    db.close()
+    if result > 0:
+        return render_template('registers.html', registers=data, user_id=user_id)
+    else:
+        return redirect(url_for('dashboard'))
 
 
 @app.route('/logout')
