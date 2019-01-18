@@ -9,15 +9,18 @@
             </div>
         </div>
     </div>
-    <h4>Select an user</h4>
+    <h4>{{ user_id }}</h4>
     <div class="table-responsive">
         <table class="table table-striped table-sm">
             <thead>
                 <tr>
                     <th>#</th>
-                    <th>User_ID</th>
                     <th>Username</th>
                     <th>Firstname</th>
+                    <th>Chat_ID</th>
+                    <th>Chat Title</th>
+                    <th>Chat Type</th>
+                    <th>Search</th>
                     <th>Date</th>
                 </tr>
             </thead>
@@ -25,14 +28,18 @@
                 {% for register in registers %}
                 <tr>
                     <td>{{ register[0] }}</td>
-                    <td><a href="{{ url_for('user_registers', user_id=register[1]) }}">{{ register[1] }}</a></td>
-                    <td>{{ register[3] }}</td>
+                    <td>{{ register[1] }}</a></td>
                     <td>{{ register[2] }}</td>
+                    <td>{{ register[3] }}</td>
                     <td>{{ register[4] }}</td>
+                    <td>{{ register[5] }}</td>
+                    <td>{{ register[6] }}</td>
+                    <td>{{ register[7] }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
+    <a class="btn btn-primary mb-3" href="{{ url_for('dashboard') }}">Back</a>
 </main>
 {% endblock %}
