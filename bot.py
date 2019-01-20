@@ -383,7 +383,14 @@ def login():
 def dashboard():
     db = database_connection()
     cursor = db.cursor()
-    query = "SELECT * FROM registers"
+    query = """SELECT r.id, r.telegram_user_id, r.username, r.first_name, h.date
+            FROM history h
+            JOIN (SELECT h.register_id rid, MAX(h.date) rdate
+                  FROM history h
+                  GROUP BY h.register_id) o ON h.register_id = o.rid AND h.date = o.rdate
+            JOIN registers r
+            ON h.register_id = r.id
+            ORDER BY h.date DESC"""
     cursor.execute(query)
     data = cursor.fetchall()
     db.close()
@@ -396,7 +403,10 @@ def dashboard():
 def user_registers(user_id):
     db = database_connection()
     cursor = db.cursor()
-    query = "SELECT h.id, r.username, r.first_name, h.chat_id, h.chat_type, h.chat_title, h.text, h.date FROM history h JOIN registers r on h.register_id = r.id WHERE r.telegram_user_id = '{}'".format(user_id)
+    query = """SELECT h.id, r.username, r.first_name, h.chat_id, h.chat_type, h.chat_title, h.text, h.date
+                FROM history h
+                JOIN registers r on h.register_id = r.id
+                WHERE r.telegram_user_id = '{}'""".format(user_id)
     result = cursor.execute(query)
     data = cursor.fetchall()
     db.close()
